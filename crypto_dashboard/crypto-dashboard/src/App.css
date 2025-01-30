@@ -1,0 +1,74 @@
+.dashboard-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #1a1a1a 0%, #0d0d2b 100%);
+  padding: 2rem;
+  color: #ffffff;
+}
+
+.dashboard-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.dashboard-header h1 {
+  font-size: 2.5rem;
+  background: linear-gradient(90deg, #00fff0, #0087ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+
+
+.dashboard-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.3s ease;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+}
+
+.dashboard-card h2 {
+  color: #8a8a8a;
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+.price-value {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #00fff0;
+}
+
+.sentiment-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: #0087ff;
+}
+
+@media (max-width: 768px) {
+  .dashboard-container {
+      padding: 1rem;
+  }
+  
+  .dashboard-header h1 {
+      font-size: 2rem;
+  }
+  
+  .dashboard-cards {
+      grid-template-columns: 1fr;
+  }
+}
