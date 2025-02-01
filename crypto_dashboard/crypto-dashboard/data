@@ -1,0 +1,8 @@
+              List of relations
+ Schema |      Name       | Type  |   Owner   
+--------+-----------------+-------+-----------
+ public | alembic_version | table | codespace
+ public | crypto_prices   | table | codespace
+ public | news            | table | codespace
+(3 rows)
+
