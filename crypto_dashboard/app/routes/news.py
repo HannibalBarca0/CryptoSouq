@@ -1,72 +1,81 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
-from datetime import datetime, timedelta
-import aiohttp
+from sqlalchemy.orm import Session
+from app.services.db import get_db, News
+from app.services.fetch_news import NewsAggregator
+from app.services.sentiment_model import analyze_sentiment
+from datetime import datetime
 import asyncio
+from app.services.news_search import search_news, index_news  # Import the search_news and index_news functions
 
 router = APIRouter()
-
-API_KEY = "8f879ae3e7bded2246a3d183e888898975d1692a"
-CRYPTOPANIC_BASE_URL = "https://cryptopanic.com/api/v1/posts/"
-
-# Cache for rate limiting
-last_request_time = datetime.now()
-MIN_REQUEST_INTERVAL = timedelta(seconds=30)
+news_aggregator = NewsAggregator()
 
 @router.get("/news")
 async def get_news(
     currencies: str = "BTC,ETH,XRP,DOGE,SOL",
     filter: str = "important",
     kind: str = "news",
-    public: bool = True
+    public: bool = True,
+    db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
-    """Fetch crypto news from CryptoPanic API"""
-    global last_request_time
-    
-    # Rate limiting
-    current_time = datetime.now()
-    if current_time - last_request_time < MIN_REQUEST_INTERVAL:
-        await asyncio.sleep((MIN_REQUEST_INTERVAL - (current_time - last_request_time)).total_seconds())
-    
+    """Fetch crypto news from Google News"""
     try:
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": "CryptoSouq/1.0"
+        # Get primary currency for search
+        primary_currency = currencies.split(",")[0]
+        
+        # Fetch news
+        articles = await news_aggregator.get_crypto_news(primary_currency)
+        
+        # Add sentiment analysis
+        results = []
+        for article in articles:
+            sentiment_result = analyze_sentiment(article["title"])
+            article["sentiment"] = sentiment_result["sentiment"]
+            article["confidence"] = sentiment_result["confidence"]
+            results.append(article)
+            
+            # Store in database
+            db_news = News(
+                title=article["title"],
+                url=article["url"],
+                source=article["source"]["title"],
+                sentiment=sentiment_result["sentiment"],
+                timestamp=datetime.utcnow(),
+                currency=primary_currency
+            )
+            db.add(db_news)
+            
+            # Index in Elasticsearch
+            index_news({
+                "title": article["title"],
+                "url": article["url"],
+                "source": article["source"]["title"],
+                "sentiment": sentiment_result["sentiment"],
+                "timestamp": datetime.utcnow().isoformat(),
+                "currency": primary_currency
+            })
+        
+        db.commit()
+        
+        return {
+            "results": results,
+            "count": len(results)
         }
         
-        params = {
-            "auth_token": API_KEY,
-            "currencies": currencies,
-            "filter": filter,
-            "kind": kind,
-            "public": "true" if public else "false"
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(CRYPTOPANIC_BASE_URL, params=params, headers=headers) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise HTTPException(
-                        status_code=response.status,
-                        detail=f"CryptoPanic API error: {error_text}"
-                    )
-                
-                data = await response.json()
-                last_request_time = datetime.now()
-                
-                return {
-                    "results": data.get("results", []),
-                    "count": data.get("count", 0),
-                    "next": data.get("next", None)
-                }
-                
-    except aiohttp.ClientError as e:
+    except Exception as e:
+        db.rollback()
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch news: {str(e)}"
         )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected error: {str(e)}"
-        )
+
+@router.get("/news/search")
+async def search_news_endpoint(
+    query: str,
+    currency: str = None,
+    limit: int = 25
+):
+    """Search news articles"""
+    results = search_news(query, currency, limit)
+    return {"results": results, "count": len(results)}
